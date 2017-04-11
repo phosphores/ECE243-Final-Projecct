@@ -1,0 +1,7 @@
+# ignore compilation files
+*.o
+*.elf
+
+# ignore monitor program files
+*.amp
+*.srec
