@@ -4,11 +4,15 @@
 
 .equ PS2_BASE,                0xFF200100
 
-.equ UART_BASE,				  0xFF201000
+.equ UART_BASE,           	  0xFF201000
 
 .equ VGA_BASE,                0xFF203020
 .equ VGA_BUFFER,              0x08000000
-.equ VGA_BACK_BUFFER,         0x00800000
+
+/* memory defines */
+.equ NUM_PLATFORMS,           5
+.equ SCREEN_RES_X,            319
+.equ SCREEN_RES_Y,            239
 
 .align 2
 .section .exceptions, "ax"
@@ -231,6 +235,10 @@ subi      ea, ea, 4           # restore pc to correct instruction
 eret                          # exit handler
 
 .data
+.align 1
+vga_back_buffer:
+.skip 50000
+
 mouse_data:
 .byte 0                       # overflow data
 .byte 0                       # delta X
@@ -255,6 +263,18 @@ background:
 platform:
 .incbin "platform.bmp"
 
+.align 2
+drawTerrain:
+.skip 600
+
+.align 2
+platforms:
+.skip 60
+
+.align 2
+player:
+.skip 20
+
 .text
 .global _start
 _start:
@@ -263,7 +283,7 @@ movia     sp, STACK_START     # initialize stack pointer
 
 /* Set up VGA front and back buffer addresses */
 movia     r6, VGA_BASE        # address for VGA registers
-movia     r8, VGA_BACK_BUFFER # address for back buffer
+movia     r8, vga_back_buffer # address for back buffer
 stwio     r8, 4(r6)           # set back buffer to address 0x00800000
 
 movi      r4, 0
