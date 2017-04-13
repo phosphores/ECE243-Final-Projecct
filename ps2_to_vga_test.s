@@ -1,4 +1,5 @@
-/* This program is used as a unit section to test PS2 mouse with interrupts.
+/* This program is used as the main driver for displaying mouse location on the
+ * VGA display.
  *
  * Initializes all settings and waits for an interrupt. When an interrupt happens,
  * handler checks if PS2 is requesting and interrupt and services it. Servicing
@@ -12,7 +13,7 @@
 
 .equ VGA_BASE,                0xFF203020
 .equ VGA_BUFFER,              0x08000000
-.equ VGA_BACK_BUFFER,         0x00800000
+.equ VGA_BACK_BUFFER,         0x08040000
 
 .align 2
 .section .exceptions, "ax"
@@ -74,7 +75,7 @@ slli      r12, r12, 1         # multiply by 2
 mov       r5, r12             # move calculated hex display number to argument register
 call      display_hex         # display value onto base hex
 mov       r4, r11             # move read data into argument register
-srli      r4, r4, 2           # take top bits of data
+srli      r4, r4, 4           # take top bits of data
 andi      r4, r4, 0xF         # mask to be safe
 addi      r5, r12, 1          # move hex display number to argument register
 call      display_hex         # display value onto base hex +1
@@ -84,19 +85,17 @@ br        display_data_hex    # loop and check end condition
 display_data_vga:
 movia     r4, mouse_data      # move mouse_data address into r4 to prep for function call
 movia     r5, mouse_pos       # move mouse_pos into r5
-call      calc_pos
+# call      calc_pos            # calculate the mouse position on VGA
 
 movia     r4, mouse_data      # move mouse_data address into r4 to prep for function call
 movia     r5, mouse_pos       # move mouse_pos into r5
-#call      copy_buffer
 
-movia     r4, mouse_data
-movia     r5, mouse_pos
+# call      copy_buffer         # copy front buffer into back buffer
 
 ldb       r11, 0(r4)          # load overflow/button data
 
 mov       r12, r11            # check if right mouse button clicked => clear screen
-andi      r12, r12, 2
+andi      r12, r12, 4
 bne       r12, r0, display_clear # if right mouse button is pressed, clear screen
 
 mov       r12, r11            # check if left mouse button clicked => draw on screen
@@ -105,17 +104,25 @@ beq       r12, r0, display_data_end # if left mouse button is not pressed, skip 
 
 ldb       r4, 0(r5)           # grab X and Y positions
 ldb       r5, 1(r5)
+subi      sp, sp, 4
+stw       r6, 0(sp)
 movui     r6, 0xFFFF          # draw in white
 call      draw_vga
+ldw       r6, 0(sp)
+addi      sp, sp, 4
 br        display_data_end
 
 display_clear:
 movi      r4, 0
-#call      clear_vga
+call      clear_vga
 
 /* restore and deallocate used registers and memory */
 display_data_end:
-call      swap_buffer
+movi      r11, 1            # swap buffers
+stwio     r11, 0(r6)
+ldwio     r11, 12(r6)       # read VGA status register
+andi      r11, r11, 0x1     # mask to isolate S bit
+bne       r11, r0, display_data_end # if S is 1, swap has not occurred, poll again
 
 ldw       r8, 0(sp)           # restore all used registers used besides initial r4, r5
 ldw       r9, 4(sp)
@@ -152,11 +159,7 @@ movia     sp, STACK_START     # initialize stack pointer
 /* Set up VGA front and back buffer addresses */
 movia     r6, VGA_BASE      # address for VGA registers
 movia     r8, VGA_BACK_BUFFER # address for back buffer
-stwio     r8, 4(r6)         # set back buffer to address 0x00800000
-
-movi      r4, 0
-call      clear_vga
-call      swap_buffer
+stwio     r8, 4(r6)         # set back buffer to address 0x08040000
 
 /* Set up mouse settings */
 movia     r6, PS2_BASE        # initialize PS2 address
@@ -164,42 +167,21 @@ movia     r7, mouse_data      # initialize mouse_data address
 movi      r8, 0xF4            # enable data reporting
 stwio     r8, 0(r6)
 
-mouse_ack1:
+movi      r4, 0               # clear screen to black
+call      clear_vga
+
+mouse_ack:
 ldwio     r8, 0(r6)           # check for ack byte (0xFA) after sending command
+mov	      r4, r8
+andi      r4, r4, 0xF
+movi      r5, 0
+call      display_hex
+mov       r4, r8
+srli      r4, r4, 4
+movi      r5, 1
+call      display_hex
 andi      r8, r8, 0x8000      # gets rid of ack byte so mouse data is correctly aligned
-beq       r8, r0, mouse_ack1  # if reading not valid, try again
-
-movi      r8, 0xF3
-stwio     r8, 0(r6)
-
-mouse_ack2:
-ldwio     r8, 0(r6)           # check for ack byte (0xFA) after sending command
-andi      r8, r8, 0x8000      # gets rid of ack byte so mouse data is correctly aligned
-beq       r8, r0, mouse_ack2  # if reading not valid, try again
-
-movi      r8, 10
-stwio     r8, 0(r6)
-
-mouse_ack3:
-ldwio     r8, 0(r6)           # check for ack byte (0xFA) after sending command
-andi      r8, r8, 0x8000      # gets rid of ack byte so mouse data is correctly aligned
-beq       r8, r0, mouse_ack3  # if reading not valid, try again
-
-movi      r8, 0xE8
-stwio     r8, 0(r6)
-
-mouse_ack4:
-ldwio     r8, 0(r6)           # check for ack byte (0xFA) after sending command
-andi      r8, r8, 0x8000      # gets rid of ack byte so mouse data is correctly aligned
-beq       r8, r0, mouse_ack4  # if reading not valid, try again
-
-movi      r8, 0
-stwio     r8, 0(r6)
-
-mouse_ack5:
-ldwio     r8, 0(r6)           # check for ack byte (0xFA) after sending command
-andi      r8, r8, 0x8000      # gets rid of ack byte so mouse data is correctly aligned
-beq       r8, r0, mouse_ack5  # if reading not valid, try again
+beq       r8, r0, mouse_ack   # if reading not valid, try again
 
 mouse_interrupt:
 movi      r8, 1               # enable read interrupts for PS2

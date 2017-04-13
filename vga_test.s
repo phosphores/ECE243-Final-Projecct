@@ -47,7 +47,12 @@ sthio     r15, 0(r14)       # load to buffer
 addi      r13, r13, 1       # increment X counter
 br        draw_loop1
 load_buffer1:
-call      swap_buffer
+movi      r15, 1            # swap buffers
+stwio     r15, 0(r6)
+check_swap1:
+ldwio     r15, 12(r6)       # read VGA status register
+andi      r15, r15, 0x1     # mask to isolate S bit
+bne       r15, r0, check_swap1 # if S is 1, swap has not occurred, poll again
 movi      r4, 1000          # delay for one second before switching
 call      delay
 
@@ -75,7 +80,12 @@ sthio     r15, 0(r14)       # load to buffer
 addi      r13, r13, 1       # increment X counter
 br        draw_loop2
 load_buffer2:
-call      swap_buffer
+movi      r15, 1            # swap buffers
+stwio     r15, 0(r6)
+check_swap2:
+ldwio     r15, 12(r6)       # read VGA status register
+andi      r15, r15, 0x1     # mask to isolate S bit
+bne       r15, r0, check_swap2 # if S is 1, swap has not occurred, poll again
 movi      r4, 1000          # delay for one second before switching
 call      delay
 

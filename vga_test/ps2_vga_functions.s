@@ -31,7 +31,7 @@ ldb     r18, 2(r4)            # change in Y
 ldb     r19, 0(r5)            # current X position
 ldb     r20, 1(r5)            # current Y position
 
-/* section to check for overflow, though I don't think this would normally happen
+/* section to check for overflow, though I dont think this would normally happen
  * to be implemented in the future
  */
 calc_pos_checks:
@@ -50,7 +50,7 @@ bgt     r17, r22, reset_x_max # go to reset
 br      update_x_pos          # if valid, update X position
 
 x_neg:
-sub     r17, r17, r19         # calculate new X position
+add     r17, r17, r19         # calculate new X position
 blt     r17, r0, reset_x_min  # if new value < 0 go to reset
 br      update_x_pos          # if valid, update X position
 
@@ -66,17 +66,17 @@ stb     r17, 0(r5)
 
 mov     r21, r16
 andi    r21, r21, 0x20
-bne     r21, r0, y_neg
+bne     r21, r0, y_neg        # Y values are inverted
 
 y_pos:
-add     r18, r18, r20
-movi    r22, SCREEN_RES_Y
-bgt     r17, r22, reset_y_max
+sub     r18, r18, r20
+blt     r18, r0, reset_y_min
 br      update_y_pos
 
 y_neg:
 sub     r18, r18, r20
-blt     r17, r0, reset_y_min
+movi    r22, SCREEN_RES_Y
+bgt     r18, r22, reset_y_max
 br      update_y_pos
 
 reset_y_max:
@@ -165,7 +165,7 @@ stw     r19, 12(sp)
 stw     r20, 16(sp)
 stw     r21, 20(sp)
 stw     r22, 24(sp)
-stw     r28, 28(sp)
+stw     r23, 28(sp)
 
 copy_setup:
 movia   r16, VGA_BASE         # move VGA register address into r16
@@ -196,15 +196,15 @@ movi    r20, 240              # reinitialize j
 br      copy_loop1            # loop i
 
 copy_epilogue:
-ldw     r16, 0(sp)
-ldw     r17, 4(sp)
-ldw     r18, 8(sp)
-ldw     r19, 12(sp)
-ldw     r20, 16(sp)
-ldw     r21, 20(sp)
-ldw     r22, 24(sp)
-ldw     r28, 28(sp)
-addi    sp, sp, 32
+ldw       r16, 0(sp)
+ldw    	  r17, 4(sp)
+ldw    	  r18, 8(sp)
+ldw       r19, 12(sp)
+ldw    	  r20, 16(sp)
+ldw   	  r21, 20(sp)
+ldw       r22, 24(sp)
+ldw       r23, 28(sp)
+addi      sp, sp, 32
 
 ret
 
@@ -215,25 +215,53 @@ ret
 draw_vga:
 
 draw_prologue:
-subi    sp, sp, 12
-stw     r16, 0(sp)
-stw     r17, 4(sp)
-stw     r18, 8(sp)
+subi      sp, sp, 12
+stw       r16, 0(sp)
+stw       r17, 4(sp)
+stw       r18, 8(sp)
 
 draw_setup:
-movia   r16, VGA_BASE         # move VGA register address into r16
-ldwio   r17, 4(r16)           # read current back buffer address
-mov     r18, r5               # move Y value into r18
-slli    r18, r18, 9           # slide to the left by 9 to make room for X
-or      r18, r18, r4          # add X value into r18
-slli    r18, r18, 1           # slide to the left by 1
-add     r18, r18, r17         # add value of back buffer address
-sthio   r6, 0(r18)            # store value into buffer
+movia     r16, VGA_BASE         # move VGA register address into r16
+ldwio     r17, 4(r16)           # read current back buffer address
+mov       r18, r5               # move Y value into r18
+slli      r18, r18, 9           # slide to the left by 9 to make room for X
+or        r18, r18, r4          # add X value into r18
+slli      r18, r18, 1           # slide to the left by 1
+add       r18, r18, r17         # add value of back buffer address
+sthio     r6, 0(r18)            # store value into buffer
 
 draw_epilogue:
-ldw     r16, 0(sp)
-ldw     r17, 4(sp)
-ldw     r18, 8(sp)
-addi    sp, sp, 12
+ldw       r16, 0(sp)
+ldw       r17, 4(sp)
+ldw       r18, 8(sp)
+addi      sp, sp, 12
+
+ret
+
+/* function to basically swap the buffers
+ * void swap_buffer()
+ */
+.global swap_buffer
+swap_buffer:
+
+swap_prologue:
+subi      sp, sp, 8
+stw       r16, 0(sp)
+stw       r17, 0(sp)
+
+swap:
+movia     r16, VGA_BASE
+movi      r17, 1            # swap buffers
+stwio     r17, 0(r16)
+
+check_swap:
+ldwio     r17, 12(r16)       # read VGA status register
+andi      r17, r17, 0x1     # mask to isolate S bit
+bne       r17, r0, check_swap # if S is 1, swap has not occurred, poll again
+
+swap_epilogue:
+ldw       r16, 0(sp)
+ldw       r17, 0(sp)
+addi      sp, sp, 8
 
 ret
