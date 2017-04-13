@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 
 struct Player {
   int x, y;
@@ -18,12 +17,12 @@ struct platform {
     int length;
 };
 //
-// const int lifeSpan = 5;
-// const int lineLength = 50;
-// const int max_x = 319;
-// const int max_y = 239;
-// const int numPlat = 5;
-// const int platLen = 5;
+const int lifeSpan = 15;
+const int lineLength = 50;
+const int max_x = 319;
+const int max_y = 239;
+const int numPlat = 5;
+const int platLen = 5;
 //
 // struct linePoint drawnTerrain [50]={{0}};
 // struct platform platforms [5] = {{0}};
@@ -31,52 +30,36 @@ struct platform {
 // struct Player p1;
 
 void start();
+//
+// void initialPlayer(struct Player* p);
+//
+// void addTerrain(int x, int y, linePoint* p, int lineLength);
+// void downTickTerrain(linePoint* p, int lineLength);
+// void advanceDrawnTerrain (linePoint* p, int lineLength);
+// void advancePlatforms(platform* pf, int numPlat, int platLen);
+//
+// void advancePlayerGravity(platform* pf, int numPlat, linePoint* p, int lineLength, Player* player);
+// bool collisionPlayer(platform* pf, int numPlat, linePoint* p, int lineLength, Player* player);
+//
+// int randomInt();
 
-void initialPlayer(struct Player* p);
-
-void addTerrain(int x, int y, linePoint* p, int lineLength);
-void downTickTerrain(linePoint* p, int lineLength);
-void advanceDrawnTerrain (linePoint* p, int lineLength);
-void advancePlatforms(platform* pf, int numPlat, int platLen);
-
-void advancePlayerGravity(platform* pf, int numPlat, linePoint* p, int lineLength, Player* player);
-bool collisionPlayer(platform* pf, int numPlat, linePoint* p, int lineLength, Player* player);
-
-int randomInt();
-
-
-
-int main()
-{
-    start();
-    return 0;
+int randomInt(){
+    return rand();
 }
 
-void initialPlayer(Player* p){
-    p->x =213;
-    p->y =130-30;
-    p->height = 30;
-    p->width = 15;
-    p->alive = 1;
-}
-
-void advancePlatforms(platform* pf, int numPlat, int platLen){
+void advancePlatforms(struct platform* pf, int numPlat, int platLen){
     for (int i = 0 ; i< numPlat; i++){
 
         if (pf[i].x == 0){
-                pf[i].x = max_x;
-                pf[i].y = randomInt()%max_y;
-                pf[i].length = platLen;
-
+            pf[i].x = max_x-30;
         }
-
         else
             pf[i].x -= 1;
 
     }
 }
 
-void advanceDrawnTerrain (linePoint* p, int lineLength){
+void advanceDrawnTerrain (struct linePoint* p, int lineLength){
     for (int i = 0 ; i< lineLength; i++){
 
         if (p[i].x > 0){
@@ -91,23 +74,26 @@ void advanceDrawnTerrain (linePoint* p, int lineLength){
     }
 }
 
-bool collisionPlayer(platform* pf, int numPlat, linePoint* p, int lineLength, Player* player){
+int collisionPlayer(struct platform* pf, int numPlat, struct linePoint* p, int lineLength, struct Player* player){
     for (int i = 0 ; i< numPlat; i++){
         if (player->x + player->width >= pf[i].x && player->x <= pf[i].x+pf[i].length){
             if (player->y+player->height==pf[i].y)
-                return true;
+                return 1;
         }
     }
     for (int i = 0 ; i< lineLength; i++){
         if ((p[i].x >= player->x  && p[i].x <= player->x+player->width) ||(p[i].x+1 > player->x && p[i].x+1 <= player->x+player->width)){
             if (player->y+player->height==p[i].y)
-                return true;
+                return 1;
         }
     }
-    return false;
+    if (player->y + player->height >= 239)
+      return 1;
+      
+    return 0;
 }
 
-void downTickTerrain(linePoint* p, int lineLength){
+void downTickTerrain(struct linePoint* p, int lineLength){
 
     for (int i  =0 ; i < lineLength; i++){
         if (p[i].lifespan > 0){
@@ -129,7 +115,7 @@ void downTickTerrain(linePoint* p, int lineLength){
     }
 }
 
-void addTerrain(int x, int y, linePoint* p, int lineLength){
+void addTerrain(int x, int y, struct linePoint* p, int lineLength){
     for (int i = 0; i < lineLength; i++){
         if (p[i].x + p[i].y + p[i].lifespan == 0){
             p[i].x = x;
@@ -141,12 +127,14 @@ void addTerrain(int x, int y, linePoint* p, int lineLength){
     }
 }
 
-void advancePlayerGravity( platform* pf, int numPlat, linePoint* p, int lineLength, Player* player){
-    if (!collisionPlayer(pf,numPlat,p,lineLength,player)){
+void advancePlayerGravity(struct platform* pf, int numPlat, struct linePoint* p, int lineLength, struct Player* player){
+    if (!collisionPlayer(pf,numPlat,p,lineLength,player)&&player->y + player->height<240){
         player->y += 1;
     }
 }
 
-int randomInt(){
-    return rand();
+int main()
+{
+    start();
+    return 0;
 }

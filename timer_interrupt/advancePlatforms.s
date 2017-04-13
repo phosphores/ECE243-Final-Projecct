@@ -41,7 +41,7 @@ stw r14,28(sp)
 
 movi r4,max_y #parameter to mod by
 
-#call randomInt
+call randomInt
 ldw r4,0(sp)
 ldw r8,4(sp)
 ldw r9,8(sp)
@@ -62,3 +62,8 @@ br advancePlatformFor
 
 endAdvPlat:
 ret
+
+
+
+
+
