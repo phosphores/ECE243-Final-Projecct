@@ -33,7 +33,7 @@ struct Player p1;
 void downTickTerrain(struct linePoint* p, int lineLength);
 void addTerrain(int x, int y,struct linePoint* p, int lineLength);
 void initialPlayer(struct Player* p);
-void advancePlatforms(struct platform* pf, int numPlat);
+void advancePlatforms(struct platform* pf, int numPlat, int platLen);
 void advanceDrawnTerrain (struct linePoint* p, int lineLength);
 bool collisionPlayer(struct platform* pf, int numPlat,struct linePoint* p, int lineLength,struct Player* player);
 void advancePlayerGravity(struct Player* p);
@@ -78,7 +78,7 @@ void initialPlayer(struct Player* p){
     p->width = 15; 
     p->alive = 1;
 }
-void advancePlatforms(struct platform* pf, int numPlat){
+void advancePlatforms(struct platform* pf, int numPlat, int platLen){
     for (int i = 0 ; i< numPlat; i++){
         
         if (pf[i].x == 0){
