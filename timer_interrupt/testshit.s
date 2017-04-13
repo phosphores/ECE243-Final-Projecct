@@ -46,21 +46,21 @@ movia     r6, UART_BASE       # read character from input and store into memory
 movia     r7, uart_data
 movi      r8, 0x20            # ASCII code for space (jump)
 
-movi	  r9, 0x1B
-movi	  r10, 0x5B
-movi	  r11, 0x32
-movi	  r12, 0x4B
+movi    r9, 0x1B
+movi    r10, 0x5B
+movi    r11, 0x32
+movi    r12, 0x4B
 
-stwio  	  r9, 0(r19)
-stwio	  r10, 0(r19)
-stwio	  r11, 0(r19)
-stwio	  r12, 0(r19)
+stwio   r9, 0(r19)
+stwio   r10, 0(r19)
+stwio   r11, 0(r19)
+stwio   r12, 0(r19)
 
 movi	  r11, 0x48
 
 stwio	  r9, 0(r6)
-stwio	  r10, 0(r6)
-stwio	  r11, 0(r6)
+stwio   r10, 0(r6)
+stwio   r11, 0(r6)
 
 uart_read:
 ldwio     r9, 0(r6)           # read data
@@ -138,7 +138,7 @@ movia     r5, mouse_pos       # move mouse_pos into r5
 call      calc_pos
 
 /* take the calculated positions and display onto vga */
-movia     r7, mouse_pos
+/*movia     r7, mouse_pos
 ldw       r8, 0(r7)           # load X position into r8
 andi      r4, r8, 0xF         # mask for lower hex
 movi      r5, 0               # select hex display 0
@@ -162,7 +162,7 @@ call      display_hex
 srli      r4, r8, 8
 andi      r4, r4, 0xF
 movi      r5, 5
-call      display_hex
+call      display_hex*/
 
 # call      copy_buffer         # copy the buffer from the current display to back buffer
 movia     r4, background
@@ -180,6 +180,8 @@ sth       r6, 0(r5)
 br        platform_draw
 
 reset_scroll:
+movia     r5, scroll_counter
+sth       r0, 0(r5)
 movi      r5, 0
 br        background_draw
 
@@ -237,7 +239,7 @@ eret                          # exit handler
 .data
 .align 1
 vga_back_buffer:
-.skip 50000
+.skip 246784
 
 mouse_data:
 .byte 0                       # overflow data

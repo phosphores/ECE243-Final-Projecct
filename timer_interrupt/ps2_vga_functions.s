@@ -3,8 +3,8 @@
 .equ SCREEN_RES_X,            319
 .equ SCREEN_RES_Y,            239
 
-.equ BMP_OFFSET1,             58
-.equ BMP_OFFSET2,             14
+.equ BMP_OFFSET1,             54
+.equ BMP_OFFSET2,             64
 
 .data
 
@@ -208,7 +208,7 @@ slli    r21, r21, 1
 add     r21, r21, r4
 ldh     r21, BMP_OFFSET2(r21)
 
-stwio   r21, 0(r20)
+sthio   r21, 0(r20)
 
 subi    r19, r19, 1             # decrement playform Y
 br      platform_loop2
