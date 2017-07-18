@@ -3,8 +3,9 @@
 .equ SCREEN_RES_X,            319
 .equ SCREEN_RES_Y,            239
 
-.equ BMP_OFFSET1,             58
-.equ BMP_OFFSET2,             14
+.equ BMP_OFFSET1,             54
+.equ BMP_OFFSET2,             60
+.equ BMP_OFFSET3,             70
 
 .data
 
@@ -39,7 +40,7 @@ srai    r18, r18, 1
 /* section to check for overflow, though I dont think this would normally happen
  * to be implemented in the future
  */
-calc_pos_checks:  
+calc_pos_checks:
 andi    r21, r16, 0xC0        # check for overflow
 bne     r21, r0, calc_pos_epilogue # if overflowed, ignore packet and exit
 
@@ -208,7 +209,7 @@ slli    r21, r21, 1
 add     r21, r21, r4
 ldh     r21, BMP_OFFSET2(r21)
 
-stwio   r21, 0(r20)
+sthio   r21, 0(r20)
 
 subi    r19, r19, 1             # decrement playform Y
 br      platform_loop2
@@ -231,6 +232,67 @@ ldw     r19, 12(sp)
 ldw     r20, 16(sp)
 ldw     r21, 20(sp)
 addi    sp, sp, 24            # deallocate stack space
+
+ret
+
+/* function to draw dude
+ * void draw_dude(void* bmp, int x, int y);
+ */
+.global draw_dude
+draw_dude:
+
+dude_prologue:
+subi    sp, sp, 24
+stw     r16, 0(sp)
+stw     r17, 4(sp)
+stw     r18, 8(sp)
+stw     r19, 12(sp)
+stw     r20, 16(sp)
+stw     r21, 20(sp)
+
+dude_setup:
+movia   r16, VGA_BASE
+ldwio   r17, 4(r16)
+movi    r18, 8
+movi    r19, 20
+
+dude_loop1:
+beq     r18, r0, dude_epilogue
+subi    r18, r18, 1
+
+dude_loop2:
+beq     r19, r0, dude_loop2_end
+subi    r19, r19, 1
+
+add     r20, r19, r6
+slli    r20, r20, 9
+add     r21, r18, r5
+or      r20, r20, r21
+slli    r20, r20, 1
+add     r20, r20, r17
+
+muli    r21, r19, 8
+add     r21, r21, r18
+slli    r21, r21, 1
+add     r21, r21, r4
+
+ldh     r21, BMP_OFFSET3(r21)
+sthio   r21, 0(r20)
+
+br      dude_loop2
+
+dude_loop2_end:
+movi    r19, 20
+br      dude_loop1
+
+dude_epilogue:
+ldw     r16, 0(sp)
+ldw     r17, 4(sp)
+ldw     r18, 8(sp)
+ldw     r19, 12(sp)
+ldw     r20, 16(sp)
+ldw     r21, 20(sp)
+addi    sp, sp, 24
 
 ret
 
@@ -354,9 +416,33 @@ stw       r18, 8(sp)
 draw_setup:
 movia     r16, VGA_BASE         # move VGA register address into r16
 ldwio     r17, 4(r16)           # read current back buffer address
+
 mov       r18, r5               # move Y value into r18
 slli      r18, r18, 9           # slide to the left by 9 to make room for X
 or        r18, r18, r4          # add X value into r18
+slli      r18, r18, 1           # slide to the left by 1
+add       r18, r18, r17         # add value of back buffer address
+sthio     r6, 0(r18)            # store value into buffer
+
+addi      r18, r5, 1            # move Y value into r18 and add 1
+slli      r18, r18, 9           # slide to the left by 9 to make room for X
+or        r18, r18, r4          # add X value into r18
+slli      r18, r18, 1           # slide to the left by 1
+add       r18, r18, r17         # add value of back buffer address
+sthio     r6, 0(r18)            # store value into buffer
+
+mov       r18, r5               # move Y value into r18
+slli      r18, r18, 9           # slide to the left by 9 to make room for X
+or        r18, r18, r4          # add X value into r18
+addi      r18, r18, 1           # add 1 to x
+slli      r18, r18, 1           # slide to the left by 1
+add       r18, r18, r17         # add value of back buffer address
+sthio     r6, 0(r18)            # store value into buffer
+
+addi      r18, r5, 1            # move Y value into r18 and add 1
+slli      r18, r18, 9           # slide to the left by 9 to make room for X
+or        r18, r18, r4          # add X value into r18
+addi      r18, r18, 1           # add 1 to x
 slli      r18, r18, 1           # slide to the left by 1
 add       r18, r18, r17         # add value of back buffer address
 sthio     r6, 0(r18)            # store value into buffer

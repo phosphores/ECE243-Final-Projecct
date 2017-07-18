@@ -4,11 +4,17 @@
 
 .equ PS2_BASE,                0xFF200100
 
-.equ UART_BASE,				  0xFF201000
+.equ UART_BASE,           	  0xFF201000
 
 .equ VGA_BASE,                0xFF203020
 .equ VGA_BUFFER,              0x08000000
-.equ VGA_BACK_BUFFER,         0x00800000
+
+/* memory defines */
+.equ NUM_PLATFORMS,           5
+.equ PLATFORM_LENGTH,         30
+.equ NUM_TERRAIN,             50
+.equ SCREEN_RES_X,            319
+.equ SCREEN_RES_Y,            239
 
 .align 2
 .section .exceptions, "ax"
@@ -35,53 +41,6 @@ stw       r10, 12(sp)
 stw       r11, 16(sp)
 stw       r12, 20(sp)
 stw       r13, 24(sp)
-
-/* read shit from UART */
-service_uart:
-movia     r6, UART_BASE       # read character from input and store into memory
-movia     r7, uart_data
-movi      r8, 0x20            # ASCII code for space (jump)
-
-movi	  r9, 0x1B
-movi	  r10, 0x5B
-movi	  r11, 0x32
-movi	  r12, 0x4B
-
-stwio  	  r9, 0(r19)
-stwio	  r10, 0(r19)
-stwio	  r11, 0(r19)
-stwio	  r12, 0(r19)
-
-movi	  r11, 0x48
-
-stwio	  r9, 0(r6)
-stwio	  r10, 0(r6)
-stwio	  r11, 0(r6)
-
-uart_read:
-ldwio     r9, 0(r6)           # read data
-andi      r10, r9, 0x8000     # mask for valid bit
-beq       r10, r0, uart_data_false # if not valid, uart data is false
-andi      r10, r9, 0xFF       # if valid, mask for data
-bne       r10, r8, uart_data_false # if not space, go to false
-
-uart_data_true:
-movi      r8, 0x31
-stb       r8, 0(r7)
-br        display_uart
-
-uart_data_false:
-movi      r8, 0x30
-stb       r8, 0(r7)
-
-display_uart:
-ldb       r8, 0(r7)
-stwio     r8, 0(r6)
-
-uart_clear:
-ldwio     r9, 0(r6)           # read data
-andi      r10, r9, 0x8000     # mask for valid bit
-bne       r10, r0, uart_clear # if not valid, read again
 
 /* read shit from mouse */
 service_mouse:
@@ -110,7 +69,148 @@ add       r13, r7, r9         # set correct byte to store in
 stb       r11, 0(r13)         # store value into memory
 addi      r9, r9, 1           # increment counter, i++
 br        read_data           # loop and check end condition
+
 read_end:
+movia     r4, mouse_data      # move mouse_data address into r4 to prep for function call
+movia     r5, mouse_pos       # move mouse_pos into r5
+call      calc_pos            # calculate new mouse position
+
+terrain_add:
+movia     r4, mouse_data      # check whether left mouse button has been clicked
+ldb       r5, 0(r4)
+andi      r5, r5, 1           # mask to check left mouse button bit
+beq       r5, r0, terrain_tickdown # if left mouse button not clicked, skip adding terrain
+
+movia     r8, mouse_pos       # set up registers to add terrain
+ldw       r4, 0(r8)
+ldw       r5, 4(r8)
+movia     r6, drawnTerrain
+movi      r7, NUM_TERRAIN
+call      addTerrain          # add terrain on mouse click
+
+terrain_tickdown:
+movia     r4, drawnTerrain
+movi      r5, NUM_TERRAIN
+call      downTickTerrain
+
+terrain_advance:
+movia     r4, drawnTerrain
+movi      r5, NUM_TERRAIN
+call      advanceDrawnTerrain
+movia     r4, drawnTerrain
+movi      r5, NUM_TERRAIN
+call      advanceDrawnTerrain
+
+platforms_advance:
+movia     r4, platforms
+movi      r5, NUM_PLATFORMS
+movi      r6, PLATFORM_LENGTH
+call      advancePlatforms
+movia     r4, platforms
+movi      r5, NUM_PLATFORMS
+movi      r6, PLATFORM_LENGTH
+call      advancePlatforms
+
+/* two paths for gravity, if jump counter is set, ignore gravity and set jump physics
+ * if jump counter is 0, read uart and decrement according to gravity
+ */
+movia     r6, jump_counter    # read jump counter to determine if jump state
+ldb       r7, 0(r6)
+beq       r7, r0, service_uart # if not jump state, read uart
+br        jump_physics        # if jump state, go to jump physics
+
+/* read shit from UART */
+service_uart:
+movia     r6, UART_BASE       # read character from input
+movia     r7, jump_counter    # jump counter address in case of change
+movi      r8, 0x20            # ASCII code for space (jump)
+
+/*movi      r9, 0x1B
+movi      r10, 0x5B
+movi      r11, 0x32
+movi      r12, 0x4B
+
+stwio     r9, 0(r19)
+stwio     r10, 0(r19)
+stwio     r11, 0(r19)
+stwio     r12, 0(r19)
+
+movi	    r11, 0x48
+
+stwio	    r9, 0(r6)
+stwio     r10, 0(r6)
+stwio     r11, 0(r6)*/
+
+uart_read:
+ldwio     r9, 0(r6)           # read data
+andi      r10, r9, 0x8000     # mask for valid bit
+beq       r10, r0, uart_clear # if not valid, uart data is false
+andi      r10, r9, 0xFF       # if valid, mask for data
+bne       r10, r8, uart_clear # if not space, ignore and do nothing
+
+uart_data_true:
+movia     r4, platforms       # check if collision
+movi      r5, NUM_PLATFORMS
+movia     r6, drawnTerrain
+movi      r7, NUM_TERRAIN
+subi      sp, sp, 4
+movia     r8, player
+stw       r8, 0(sp)
+call      collisionPlayer
+addi      sp, sp, 4
+beq       r2, r0, uart_clear  # if no collision, do not toggle jump state
+
+movia     r7, jump_counter
+movi      r8, 10              # else toggle jump state
+stb       r8, 0(r7)
+
+uart_clear:
+movia     r6, UART_BASE
+ldwio     r9, 0(r6)           # read data
+andi      r10, r9, 0x8000     # mask for valid bit
+bne       r10, r0, uart_clear # if not valid, read again
+
+regular_physics:
+movia     r4, platforms
+movi      r5, NUM_PLATFORMS
+movia     r6, drawnTerrain
+movi      r7, NUM_TERRAIN
+subi      sp, sp, 4
+movia     r8, player
+stw       r8, 0(sp)
+call      advancePlayerGravity
+addi      sp, sp, 4
+movia     r4, platforms
+movi      r5, NUM_PLATFORMS
+movia     r6, drawnTerrain
+movi      r7, NUM_TERRAIN
+subi      sp, sp, 4
+movia     r8, player
+stw       r8, 0(sp)
+call      advancePlayerGravity
+addi      sp, sp, 4
+movia     r4, platforms
+movi      r5, NUM_PLATFORMS
+movia     r6, drawnTerrain
+movi      r7, NUM_TERRAIN
+subi      sp, sp, 4
+movia     r8, player
+stw       r8, 0(sp)
+call      advancePlayerGravity
+addi      sp, sp, 4
+
+br        draw_shit
+
+jump_physics:
+movia     r6, jump_counter
+ldb       r7, 0(r6)
+subi      r7, r7, 1
+stb       r7, 0(r6)
+
+movia     r6, player
+ldw       r7, 4(r6)
+subi      r7, r7, 2
+stw       r7, 4(r6)
 
 /*movi      r9, 0             # reinitialize iterator i = 0
 display_data_hex:
@@ -128,13 +228,8 @@ call      display_hex         # display value onto base hex +1
 addi      r9, r9, 1           # increment counter, i++
 br        display_data_hex    # loop and check end condition*/
 
-display_data_vga:
-movia     r4, mouse_data      # move mouse_data address into r4 to prep for function call
-movia     r5, mouse_pos       # move mouse_pos into r5
-call      calc_pos
-
 /* take the calculated positions and display onto vga */
-movia     r7, mouse_pos
+/*movia     r7, mouse_pos
 ldw       r8, 0(r7)           # load X position into r8
 andi      r4, r8, 0xF         # mask for lower hex
 movi      r5, 0               # select hex display 0
@@ -158,9 +253,9 @@ call      display_hex
 srli      r4, r8, 8
 andi      r4, r4, 0xF
 movi      r5, 5
-call      display_hex
+call      display_hex*/
 
-# call      copy_buffer         # copy the buffer from the current display to back buffer
+draw_shit:
 movia     r4, background
 movia     r5, scroll_counter
 ldh       r5, 0(r5)
@@ -176,37 +271,58 @@ sth       r6, 0(r5)
 br        platform_draw
 
 reset_scroll:
+movia     r5, scroll_counter
+sth       r0, 0(r5)
 movi      r5, 0
 br        background_draw
 
 platform_draw:
+mov       r8,r0
+movi      r9,NUM_PLATFORMS
+movia     r10, platforms
+platform_draw_loop:
+beq       r8,r9,mouse_draw
 movia     r4, platform
-movi      r5, 100
-movi      r6, 100
-movi      r7, 200
+ldw       r5, 4(r10)
+ldw       r6, 0(r10)
+ldw       r7, 8(r10)
+add       r7,r7,r6
 call      draw_platform
+addi r10,r10,12
+addi r8,r8,1
+br platform_draw_loop
 
 mouse_draw:
 movia     r4, mouse_data
 movia     r5, mouse_pos
-
-ldb       r11, 0(r4)          # load overflow/button data
-
-andi      r12, r11, 2         # check if right mouse button clicked => clear screen
-bne       r12, r0, display_clear # if right mouse button is pressed, clear screen
-
-andi      r12, r11, 1         # check if left mouse button clicked => draw on screen
-beq       r12, r0, display_data_end # if left mouse button is not pressed, skip drawing
-
 ldw       r4, 0(r5)           # grab X and Y positions
 ldw       r5, 4(r5)
-movui     r6, 0xFFFF          # draw in white
-# call      draw_vga
-br        display_data_end
+movi      r6, 0               # draw in white
+call      draw_vga
 
-display_clear:
-movi      r4, 0
-# call      clear_vga
+draw_terrain:
+movia     r7, drawnTerrain
+movi      r8, NUM_TERRAIN
+movi      r9, 0
+draw_terrain_loop:
+beq       r9, r8, draw_terrain_end
+ldw       r4,0(r7)
+ldw       r5,4(r7)
+movi      r6,0
+call      draw_vga
+addi      r7,r7,12
+addi      r9, r9, 1
+br draw_terrain_loop
+draw_terrain_end:
+
+dude_draw:
+movia     r7, player
+movia     r4, dude
+ldw       r5, 0(r7)
+ldw       r6, 4(r7)
+call      draw_dude
+
+br        display_data_end
 
 display_data_end:
 call      swap_buffer
@@ -231,21 +347,26 @@ subi      ea, ea, 4           # restore pc to correct instruction
 eret                          # exit handler
 
 .data
+.align 1
+vga_back_buffer:
+.skip 246784
+
 mouse_data:
 .byte 0                       # overflow data
 .byte 0                       # delta X
 .byte 0                       # delta Y
-
-uart_data:
-.byte 0                       # character recieved by the uart
 
 .align 2
 mouse_pos:
 .word 0                       # X position
 .word 0                       # Y position
 
+jump_counter:
+.byte 0                       # counter for jump (value 0-10)
+
+.align 1
 scroll_counter:
-.hword 0                      # counter for scroll position
+.hword 0                      # counter for background scroll position
 
 .align 1
 background:
@@ -255,16 +376,58 @@ background:
 platform:
 .incbin "platform.bmp"
 
+.align 1
+dude:
+.incbin "dude.bmp"
+
+.align 2
+drawnTerrain:
+.skip 600
+
+.align 2
+platforms:
+.word 20
+.word 100
+.word 30
+
+.word 80
+.word 120
+.word 30
+
+.word 140
+.word 150
+.word 30
+
+.word 200
+.word 120
+.word 30
+
+.word 260
+.word 150
+.word 30
+
+.word 320
+.word 120
+.word 30
+
+.align 2
+player:
+.word 80                     # initial player x position
+.word 100                    # initial player y position
+.word 20                     # player height
+.word 8                      # player width
+.word 1                      # alive/dead status (alive)
+
 .text
-.global _start
-_start:
+.global start
+start:
 
 movia     sp, STACK_START     # initialize stack pointer
 
 /* Set up VGA front and back buffer addresses */
 movia     r6, VGA_BASE        # address for VGA registers
-movia     r8, VGA_BACK_BUFFER # address for back buffer
-stwio     r8, 4(r6)           # set back buffer to address 0x00800000
+movia     r8, vga_back_buffer # address for back buffer
+stwio     r8, 4(r6)           # set back buffer to address
 
 movi      r4, 0
 call      clear_vga
@@ -315,10 +478,21 @@ andi      r9, r8, 0xFF
 bne       r9, r7, mouse_ack4  # if doesnt match FA when valid, try again
 
 /* No set up for UART */
+movia     r6, drawnTerrain
+movi      r7, 600
+terrain_init_loop:
+beq       r7, r0, terrain_init_end
+subi      r7, r7, 12
+add       r8, r7, r6
+stw       r0, 0(r8)
+br        terrain_init_loop
+terrain_init_end:
+
+movia     r6, platforms
 
 /* Set up timer settings and enable interrupts */
 movia     r6, TIMER1_BASE
-movi      r4, 50              # cycles will be every 50 milliseconds
+movi      r4, 100              # cycles will be every 50 milliseconds
 slli      r4, r4, 2           # multiply by 4*25000*1/100MHz to get 1ms
 muli      r4, r4, 25000
 mov       r17, r4             # load periodl
